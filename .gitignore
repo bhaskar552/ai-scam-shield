@@ -1,0 +1,60 @@
+# Dependency directories
+frontend/node_modules/
+node_modules/
+
+# Next.js build output
+frontend/.next/
+frontend/out/
+frontend/build/
+
+# Next.js cache and logs
+frontend/.pnp
+frontend/.pnp.*
+frontend/.yarn/*
+!frontend/.yarn/patches
+!frontend/.yarn/plugins
+!frontend/.yarn/releases
+!frontend/.yarn/versions
+frontend/*.tsbuildinfo
+
+# Python build and cache
+**/__pycache__/
+**/*.py[cod]
+**/*$py.class
+backend/.venv/
+backend/venv/
+backend/env/
+backend/ENV/
+.venv/
+venv/
+env/
+ENV/
+
+# Python dependencies / local db
+backend/chroma_db/
+
+# Environment files (sensitive data)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+frontend/.env
+frontend/.env.local
+frontend/.env.development.local
+frontend/.env.test.local
+frontend/.env.production.local
+backend/.env
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDEs and editors
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
