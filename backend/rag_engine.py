@@ -12,7 +12,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from langchain_community.document_loaders import TextLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_google_genai import GoogleGenerativeAIEmbeddings
+from langchain_openai import OpenAIEmbeddings
 from langchain_chroma import Chroma
 
 load_dotenv()
@@ -31,16 +31,17 @@ _retriever = None
 
 
 def _get_embeddings():
-    """Return Google Generative AI embeddings model."""
-    api_key = os.getenv("GOOGLE_API_KEY")
+    """Return OpenAI embeddings model."""
+    api_key = os.getenv("OPENAI_API_KEY")
+    api_base = os.getenv("OPENAI_API_BASE")
     if not api_key:
         raise ValueError(
-            "GOOGLE_API_KEY not set. Copy .env.template to .env and add your key."
+            "OPENAI_API_KEY not set. Copy .env.template to .env and add your key."
         )
-    return GoogleGenerativeAIEmbeddings(
-        model="models/gemini-embedding-2",
-        google_api_key=api_key,
-        task_type="retrieval_document",
+    return OpenAIEmbeddings(
+        model="text-embedding-3-small",
+        openai_api_key=api_key,
+        openai_api_base=api_base,
     )
 
 

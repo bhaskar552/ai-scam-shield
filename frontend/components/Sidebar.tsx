@@ -2,7 +2,7 @@ import { Shield, Activity, AlertTriangle, Settings, BarChart3, Bell, Zap } from 
 
 const navItems = [
   { icon: Activity, label: "Live Monitor", id: "monitor" },
-  { icon: AlertTriangle, label: "Alert Queue", id: "alerts", badge: 3 },
+  { icon: AlertTriangle, label: "Alert Queue", id: "alerts" },
   { icon: BarChart3, label: "Analytics", id: "analytics" },
   { icon: Bell, label: "Notifications", id: "notifications" },
   { icon: Settings, label: "Settings", id: "settings" },
@@ -62,7 +62,9 @@ export default function Sidebar({ connected, txCount, criticalCount, currentView
 
       {/* Navigation */}
       <nav className="flex-1 px-2 py-2 space-y-0.5">
-        {navItems.map(({ icon: Icon, label, id, badge }) => (
+        {navItems.map(({ icon: Icon, label, id }) => {
+          const dynamicBadge = id === "alerts" && criticalCount > 0 ? criticalCount : null;
+          return (
           <button
             key={id}
             id={`nav-${id}`}
@@ -77,13 +79,13 @@ export default function Sidebar({ connected, txCount, criticalCount, currentView
           >
             <Icon className="w-4 h-4 flex-shrink-0" />
             <span className="hidden lg:block">{label}</span>
-            {badge != null && (
+            {dynamicBadge != null && (
               <span className="hidden lg:flex ml-auto w-5 h-5 rounded-full bg-red-500 text-[10px] font-bold text-white items-center justify-center">
-                {badge}
+                {dynamicBadge}
               </span>
             )}
           </button>
-        ))}
+        )})}
       </nav>
 
       {/* Footer */}

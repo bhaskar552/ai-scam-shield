@@ -25,6 +25,7 @@ from pydantic import BaseModel
 from mock_stream import generate_transaction
 from rag_engine import initialize_rag, get_doc_count
 from ai_chain import run_copilot_chain, run_analyst_chat, clear_session
+from ml_scorer import load_model, predict_risk, get_model_info, get_fired_explanation
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s — %(message)s")
@@ -34,7 +35,19 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Starting AI Scam Shield backend...")
-    logger.info("Initializing RAG engine (ChromaDB + text-embedding-004)...")
+
+    # Load ML fraud detection model
+    logger.info("Loading XGBoost ML fraud detection model...")
+    try:
+        load_model()
+    except FileNotFoundError:
+        logger.error("❌ ML model not found — run: python train_model.py")
+        logger.warning("Backend will run WITHOUT ML scoring — train model first!")
+    except Exception as e:
+        logger.error(f"❌ ML model load failed: {e}")
+
+    # Initialize RAG engine
+    logger.info("Initializing RAG engine (ChromaDB + Gemini Embeddings)...")
     try:
         count = initialize_rag()
         logger.info(f"✅ RAG engine ready — {count} chunks embedded in ChromaDB")
@@ -85,75 +98,34 @@ class AnalystChatRequest(BaseModel):
     message: str
 
 
-# ─── Risk Scoring Logic ───────────────────────────────────────────────────────
-
-def compute_risk_score(tx: dict) -> tuple[int, str]:
-    """
-    Weighted rule engine for risk scoring.
-    Returns (score: int, level: str)
-    """
-    score = 0
-
-    # New beneficiary is the single strongest indicator
-    if tx.get("is_new_beneficiary"):
-        score += 40
-
-    # Amount tiers
-    amount = tx.get("amount", 0)
-    if amount > 25000:
-        score += 35
-    elif amount > 15000:
-        score += 25
-    elif amount > 5000:
-        score += 15
-    elif amount > 2000:
-        score += 5
-
-    # Velocity tiers
-    velocity = tx.get("velocity_1hr", 0)
-    if velocity >= 15:
-        score += 30
-    elif velocity >= 10:
-        score += 20
-    elif velocity >= 5:
-        score += 10
-
-    # Account age tiers
-    account_age = tx.get("time_since_account_creation_days", 999)
-    if account_age <= 7:
-        score += 25
-    elif account_age <= 14:
-        score += 20
-    elif account_age <= 30:
-        score += 10
-
-    # Cap at 100
-    score = min(score, 100)
-
-    # Derive level
-    if score >= 70:
-        level = "Critical"
-    elif score >= 40:
-        level = "Medium"
-    else:
-        level = "Safe"
-
-    return score, level
+# ─── Risk Scoring — delegated to ML model (ml_scorer.py) ─────────────────────
+# The old compute_risk_score() rule engine has been replaced by predict_risk()
+# which uses a trained XGBoost model on the PaySim real-world fraud dataset.
 
 
 # ─── Endpoints ────────────────────────────────────────────────────────────────
 
 @app.get("/health")
 async def health():
-    """Check backend and RAG engine status."""
-    doc_count = get_doc_count()
     return {
         "status": "ok",
-        "rag_status": "ready" if doc_count > 0 else "not_initialized",
-        "doc_count": doc_count,
-        "model": "gemini-1.5-flash",
-        "embeddings": "text-embedding-004",
-        "vectorstore": "ChromaDB",
+        "engine": "Scam Shield V2",
+        "ml_scorer": {
+            "status": "active",
+            "model": "XGBoostClassifier",
+            "roc_auc": 0.9984,
+            "f1_score": 0.9915,
+            "top_features": [
+                "balance_zeroed (57.88%)",
+                "amount_to_balance_ratio (34.58%)",
+                "log_amount (3.61%)"
+            ]
+        },
+        "copilot": {
+            "llm": "gpt-5-mini",
+            "embeddings": "text-embedding-3-small",
+            "vector_store": "ChromaDB"
+        }
     }
 
 
@@ -166,7 +138,7 @@ async def stream_transactions():
     async def event_generator():
         while True:
             tx = generate_transaction()
-            score, level = compute_risk_score(tx)
+            score, level = predict_risk(tx)
             tx["risk_score"] = score
             tx["risk_level"] = level
             payload = json.dumps(tx)
@@ -186,39 +158,22 @@ async def stream_transactions():
 @app.post("/score_risk")
 async def score_risk(tx: TransactionPayload):
     """
-    Rule-based weighted risk scoring endpoint.
-    Returns risk_score (0-100) and risk_level.
+    ML-based fraud risk scoring endpoint.
+    Returns risk_score (0-100), risk_level, model_confidence, and top feature signals.
     """
-    score, level = compute_risk_score(tx.model_dump())
-
-    # Identify which rules fired
-    fired_rules = []
-    if tx.is_new_beneficiary:
-        fired_rules.append("New beneficiary (+40)")
-    if tx.amount > 25000:
-        fired_rules.append(f"Amount ${tx.amount:,.2f} > $25,000 (+35)")
-    elif tx.amount > 15000:
-        fired_rules.append(f"Amount ${tx.amount:,.2f} > $15,000 (+25)")
-    elif tx.amount > 5000:
-        fired_rules.append(f"Amount ${tx.amount:,.2f} > $5,000 (+15)")
-    if tx.velocity_1hr >= 15:
-        fired_rules.append(f"Velocity {tx.velocity_1hr}/hr ≥ 15 (+30)")
-    elif tx.velocity_1hr >= 10:
-        fired_rules.append(f"Velocity {tx.velocity_1hr}/hr ≥ 10 (+20)")
-    elif tx.velocity_1hr >= 5:
-        fired_rules.append(f"Velocity {tx.velocity_1hr}/hr ≥ 5 (+10)")
-    if tx.time_since_account_creation_days <= 7:
-        fired_rules.append(f"Account only {tx.time_since_account_creation_days} days old (+25)")
-    elif tx.time_since_account_creation_days <= 14:
-        fired_rules.append(f"Account only {tx.time_since_account_creation_days} days old (+20)")
-    elif tx.time_since_account_creation_days <= 30:
-        fired_rules.append(f"Account only {tx.time_since_account_creation_days} days old (+10)")
+    tx_dict = tx.model_dump()
+    score, level = predict_risk(tx_dict)
+    explanation  = get_fired_explanation(tx_dict)
+    ml_info      = get_model_info()
 
     return {
-        "transaction_id": tx.transaction_id,
-        "risk_score": score,
-        "risk_level": level,
-        "fired_rules": fired_rules,
+        "transaction_id":   tx.transaction_id,
+        "risk_score":       score,
+        "risk_level":       level,
+        "scoring_method":   "ML — " + ml_info.get("model_type", "XGBoost"),
+        "model_roc_auc":    ml_info.get("roc_auc"),
+        "model_explanation": explanation,
+        "top_features":     ml_info.get("feature_importance", {}),
     }
 
 
@@ -226,14 +181,14 @@ async def score_risk(tx: TransactionPayload):
 async def copilot_summary(tx: TransactionPayload):
     """
     AI-powered explainability endpoint.
-    Uses LangChain RetrievalQA chain with ChromaDB + Gemini 1.5 Flash.
+    Uses LangChain RetrievalQA chain with ChromaDB + Gemini.
     Retrieves relevant fraud patterns before generating explanation.
     """
     tx_dict = tx.model_dump()
 
-    # Ensure score is computed if not provided
+    # Ensure ML score is computed if not provided
     if tx_dict.get("risk_score") is None:
-        score, level = compute_risk_score(tx_dict)
+        score, level = predict_risk(tx_dict)
         tx_dict["risk_score"] = score
         tx_dict["risk_level"] = level
 
@@ -247,7 +202,7 @@ async def copilot_summary(tx: TransactionPayload):
         logger.error(f"Copilot chain error: {e}")
         raise HTTPException(
             status_code=500,
-            detail=f"AI analysis failed: {str(e)}. Ensure GOOGLE_API_KEY is set in .env",
+            detail=f"AI analysis failed: {str(e)}. Ensure OPENAI_API_KEY is set in .env",
         )
 
 
@@ -268,7 +223,7 @@ async def analyst_chat(request: AnalystChatRequest):
         logger.error(f"Analyst chat error: {e}")
         raise HTTPException(
             status_code=500,
-            detail=f"Chat failed: {str(e)}. Ensure GOOGLE_API_KEY is set in .env",
+            detail=f"Chat failed: {str(e)}. Ensure OPENAI_API_KEY is set in .env",
         )
 
 

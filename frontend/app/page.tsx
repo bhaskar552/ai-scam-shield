@@ -9,7 +9,7 @@ import NotificationsView from "@/components/NotificationsView";
 import SettingsView from "@/components/SettingsView";
 import { Transaction, subscribeToTransactions } from "@/lib/api";
 
-const MAX_ROWS = 100;
+const MAX_ROWS = 500; // rolling window — keeps last 500 txns, stream never stops
 
 export default function DashboardPage() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -25,7 +25,11 @@ export default function DashboardPage() {
     const es = subscribeToTransactions(
       (tx) => {
         setConnected(true);
-        setTransactions((prev) => [tx, ...prev].slice(0, MAX_ROWS));
+        setTransactions((prev) => {
+          const updated = [tx, ...prev];
+          // Keep a rolling window so memory stays bounded on long-running sessions
+          return updated.length > MAX_ROWS ? updated.slice(0, MAX_ROWS) : updated;
+        });
       },
       () => {
         setConnected(false);
