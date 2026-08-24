@@ -2,85 +2,123 @@
 
 **AI-powered real-time fraud prevention for instant payments (FedNow / RTP)**
 
-Built for hackathon demo — featuring LangChain RAG + Gemini 1.5 Flash + ChromaDB.
+Built for modern fraud operations — featuring **XGBoost ML** for live scoring and **LangChain RAG** + **OpenAI** for Analyst Copilot explainability.
 
 ---
 
-## Architecture
+## 🏗️ Architecture Flow
 
+```mermaid
+graph TD
+    %% Define Styles
+    classDef client fill:#1e293b,stroke:#3b82f6,stroke-width:2px,color:#fff
+    classDef api fill:#0f172a,stroke:#8b5cf6,stroke-width:2px,color:#fff
+    classDef ml fill:#064e3b,stroke:#10b981,stroke-width:2px,color:#fff
+    classDef ai fill:#312e81,stroke:#6366f1,stroke-width:2px,color:#fff
+    classDef db fill:#451a03,stroke:#f59e0b,stroke-width:2px,color:#fff
+
+    subgraph Frontend [Next.js React Dashboard]
+        UI[Live Operations Center]:::client
+        CopilotUI[AI Analyst Copilot]:::client
+    end
+
+    subgraph Backend [FastAPI Server]
+        Stream[SSE Transaction Stream]:::api
+        Risk[ML Risk Scorer API]:::api
+        Copilot[LangChain RAG Copilot API]:::api
+    end
+
+    subgraph Intelligence [Models & Storage]
+        XGBoost[(XGBoost Classifier)]:::ml
+        Chroma[(ChromaDB Vector Store)]:::db
+        Gateway((Custom AI Gateway)):::ai
+    end
+
+    %% Flow
+    Stream -- 1. Generate & Stream --> UI
+    UI -- 2. Request Risk Score --> Risk
+    Risk -- 3. Feature Extraction & Predict --> XGBoost
+    XGBoost -.-> Risk
+    Risk -.-> UI
+    
+    UI -- 4. Analyst Opens Transaction --> CopilotUI
+    CopilotUI -- 5. Request AI Summary --> Copilot
+    Copilot -- 6. Similarity Search --> Chroma
+    Chroma -.-> Copilot
+    Copilot -- 7. RAG Prompt (gpt-5-mini) --> Gateway
+    Gateway -.-> Copilot
+    Copilot -.-> CopilotUI
 ```
-Frontend (Next.js 16 + Tailwind v4)     Backend (FastAPI + Python)
-─────────────────────────────────        ──────────────────────────
-SSE stream → live transaction table      /transactions   → SSE stream
-Click row  → Copilot Panel opens         /score_risk     → rule engine
-AI Summary → Gemini 1.5 Flash            /copilot_summary→ LangChain RAG
-Analyst Chat → multi-turn memory         /analyst_chat   → ConversationalRetrievalChain
-RAG Viewer → ChromaDB source docs        /health         → status check
-```
 
-## AI Stack
+## 🧠 Technology Stack
 
-| Component | Technology |
+### Core Engine
+| Component | Technology | Description |
+|---|---|---|
+| **ML Model** | XGBoost (`xgboost`) | Real-time transaction scoring trained on Kaggle PaySim data. |
+| **LLM** | OpenAI `gpt-5-mini` | Powers the Analyst Copilot and Chat. Routed via custom AI Gateway. |
+| **Embeddings** | OpenAI `text-embedding-3-small` | Vectorizes the internal knowledge base documents. |
+| **Vector Store** | ChromaDB | Persistent local database storing 57 RAG knowledge chunks. |
+| **RAG Framework**| LangChain LCEL | Orchestrates `RetrievalQA` and `ConversationalRetrievalChain`. |
+
+### Infrastructure
+| Layer | Tech |
 |---|---|
-| LLM | Gemini 1.5 Flash (`gemini-1.5-flash`) |
-| Embeddings | Google `text-embedding-004` |
-| Vector Store | ChromaDB (persistent local) |
-| RAG Framework | LangChain `RetrievalQA` |
-| Analyst Chat | LangChain `ConversationalRetrievalChain` |
-| Knowledge Base | 5 documents (fraud patterns, FedNow rules, case studies, playbook, regulations) |
+| **Frontend** | Next.js 16, Tailwind CSS, Lucide Icons |
+| **Backend** | FastAPI, Uvicorn, Pydantic |
+| **Streaming** | Server-Sent Events (SSE) |
 
 ---
 
-## Setup
+## 🚀 Setup & Installation
 
-### 1. Set your Gemini API key
-
+### 1. Configure the AI Gateway
 ```bash
 cd backend
 cp .env.template .env
-# Edit .env and paste your GOOGLE_API_KEY from https://aistudio.google.com
+```
+Edit `.env` to include your AI Gateway credentials:
+```env
+OPENAI_API_KEY="sk-..."
+OPENAI_API_BASE="https://your-gateway.elb.us-east-1.amazonaws.com/v1"
 ```
 
-### 2. Start the backend
-
+### 2. Start the Backend
 ```bash
 cd backend
 pip install -r requirements.txt
 python -m uvicorn main:app --reload --port 8000
 ```
+*On the first run, ChromaDB will automatically embed the 5 knowledge base documents.*
 
-On first run, ChromaDB will embed all 5 knowledge base documents (~15 seconds).
-
-### 3. Start the frontend
-
+### 3. Start the Frontend
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
-
 Open **http://localhost:3000**
 
 ---
 
-## Key Features
+## 🔍 Key Features
 
-- **Live SSE stream** — new transaction every 1.5 seconds
-- **Weighted risk scoring** — rule engine fires before AI
-- **LangChain RAG copilot** — retrieves fraud knowledge before generating explanation
-- **RAG Context Viewer** — shows exactly which documents were retrieved
-- **Analyst Chat** — multi-turn conversational AI with memory
-- **Action buttons** — Approve / Hold Funds / Escalate to Tier 2
+- **Live SSE Stream** — Mock transaction generator streaming real-world PaySim fraud patterns.
+- **XGBoost Scoring Engine** — Transactions are scored instantly using on-the-fly feature engineering.
+- **LangChain RAG Copilot** — Retrieves FinCEN/FedNow rules, fraud patterns, and case studies before generating an explanation.
+- **RAG Context Viewer** — See exactly which documents the AI used for its conclusion.
+- **Multi-turn Analyst Chat** — Conversational AI with memory to drill down into a transaction.
+- **Interactive Triage Queue** — Dynamic alerts for Critical-tier transactions.
 
 ---
 
-## Endpoints
+## 📡 API Endpoints
 
 | Method | URL | Description |
 |---|---|---|
-| GET | `/health` | Backend + RAG status |
+| GET | `/health` | Backend, ML Model, and RAG status |
 | GET | `/transactions` | SSE stream of synthetic transactions |
-| POST | `/score_risk` | Rule-based risk score |
-| POST | `/copilot_summary` | LangChain RAG + Gemini explainability |
+| POST | `/score_risk` | XGBoost ML risk score & feature importances |
+| POST | `/copilot_summary` | LangChain RAG AI explainability |
 | POST | `/analyst_chat` | Multi-turn conversational AI |
 | DELETE | `/analyst_chat/{session_id}` | Clear chat memory |
