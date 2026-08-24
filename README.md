@@ -72,18 +72,7 @@ graph TD
 
 ## 🚀 Setup & Installation
 
-### 1. Configure the AI Gateway
-```bash
-cd backend
-cp .env.template .env
-```
-Edit `.env` to include your AI Gateway credentials:
-```env
-OPENAI_API_KEY="sk-..."
-OPENAI_API_BASE="https://your-gateway.elb.us-east-1.amazonaws.com/v1"
-```
-
-### 2. Start the Backend
+### 1. Start the Backend
 ```bash
 cd backend
 pip install -r requirements.txt
@@ -91,7 +80,7 @@ python -m uvicorn main:app --reload --port 8000
 ```
 *On the first run, ChromaDB will automatically embed the 5 knowledge base documents.*
 
-### 3. Start the Frontend
+### 2. Start the Frontend
 ```bash
 cd frontend
 npm install
