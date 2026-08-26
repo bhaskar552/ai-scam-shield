@@ -203,7 +203,7 @@ export default function CopilotPanel({ transaction, onClose }: CopilotPanelProps
             <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/30">
               <p className="text-xs font-semibold text-red-400 mb-1">AI Analysis Error</p>
               <p className="text-xs text-red-300">{error}</p>
-              <p className="text-[10px] text-slate-500 mt-2">Ensure OPENAI_API_KEY and OPENAI_API_BASE are set in backend/.env</p>
+              <p className="text-[10px] text-slate-500 mt-2">Ensure GOOGLE_API_KEY is set in backend/.env</p>
             </div>
           )}
 

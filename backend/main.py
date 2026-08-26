@@ -122,8 +122,8 @@ async def health():
             ]
         },
         "copilot": {
-            "llm": "gpt-5-mini",
-            "embeddings": "text-embedding-3-small",
+            "llm": "Gemini 2.0 Flash",
+            "embeddings": "models/gemini-embedding-2",
             "vector_store": "ChromaDB"
         }
     }
@@ -202,7 +202,7 @@ async def copilot_summary(tx: TransactionPayload):
         logger.error(f"Copilot chain error: {e}")
         raise HTTPException(
             status_code=500,
-            detail=f"AI analysis failed: {str(e)}. Ensure OPENAI_API_KEY is set in .env",
+            detail=f"AI analysis failed: {str(e)}. Ensure GOOGLE_API_KEY is set in .env",
         )
 
 
@@ -223,7 +223,7 @@ async def analyst_chat(request: AnalystChatRequest):
         logger.error(f"Analyst chat error: {e}")
         raise HTTPException(
             status_code=500,
-            detail=f"Chat failed: {str(e)}. Ensure OPENAI_API_KEY is set in .env",
+            detail=f"Chat failed: {str(e)}. Ensure GOOGLE_API_KEY is set in .env",
         )
 
 

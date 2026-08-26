@@ -2,7 +2,7 @@
 
 **AI-powered real-time fraud prevention for instant payments (FedNow / RTP)**
 
-Built for modern fraud operations — featuring **XGBoost ML** for live scoring and **LangChain RAG** + **OpenAI** for Analyst Copilot explainability.
+Built for modern fraud operations — featuring **XGBoost ML** for live scoring and **LangChain RAG** + **Google Gemini** for Analyst Copilot explainability.
 
 ---
 
@@ -17,36 +17,36 @@ graph TD
     classDef ai fill:#312e81,stroke:#6366f1,stroke-width:2px,color:#fff
     classDef db fill:#451a03,stroke:#f59e0b,stroke-width:2px,color:#fff
 
-    subgraph Frontend [Next.js React Dashboard]
-        UI[Live Operations Center]:::client
-        CopilotUI[AI Analyst Copilot]:::client
+    subgraph Frontend ["Next.js React Dashboard"]
+        UI["Live Operations Center"]:::client
+        CopilotUI["AI Analyst Copilot"]:::client
     end
 
-    subgraph Backend [FastAPI Server]
-        Stream[SSE Transaction Stream]:::api
-        Risk[ML Risk Scorer API]:::api
-        Copilot[LangChain RAG Copilot API]:::api
+    subgraph Backend ["FastAPI Server"]
+        Stream["SSE Transaction Stream"]:::api
+        Risk["ML Risk Scorer API"]:::api
+        Copilot["LangChain RAG Copilot API"]:::api
     end
 
-    subgraph Intelligence [Models & Storage]
-        XGBoost[(XGBoost Classifier)]:::ml
-        Chroma[(ChromaDB Vector Store)]:::db
-        Gateway((Custom AI Gateway)):::ai
+    subgraph Intelligence ["Models & Storage"]
+        XGBoost[("XGBoost Classifier")]:::ml
+        Chroma[("ChromaDB Vector Store")]:::db
+        Gemini(("Google Gemini 2.0 Flash")):::ai
     end
 
     %% Flow
-    Stream -- 1. Generate & Stream --> UI
-    UI -- 2. Request Risk Score --> Risk
-    Risk -- 3. Feature Extraction & Predict --> XGBoost
+    Stream -- "1. Generate & Stream" --> UI
+    UI -- "2. Request Risk Score" --> Risk
+    Risk -- "3. Feature Extraction & Predict" --> XGBoost
     XGBoost -.-> Risk
     Risk -.-> UI
     
-    UI -- 4. Analyst Opens Transaction --> CopilotUI
-    CopilotUI -- 5. Request AI Summary --> Copilot
-    Copilot -- 6. Similarity Search --> Chroma
+    UI -- "4. Analyst Opens Transaction" --> CopilotUI
+    CopilotUI -- "5. Request AI Summary" --> Copilot
+    Copilot -- "6. Similarity Search" --> Chroma
     Chroma -.-> Copilot
-    Copilot -- 7. RAG Prompt (gpt-5-mini) --> Gateway
-    Gateway -.-> Copilot
+    Copilot -- "7. RAG Prompt via Gemini" --> Gemini
+    Gemini -.-> Copilot
     Copilot -.-> CopilotUI
 ```
 
@@ -56,8 +56,8 @@ graph TD
 | Component | Technology | Description |
 |---|---|---|
 | **ML Model** | XGBoost (`xgboost`) | Real-time transaction scoring trained on Kaggle PaySim data. |
-| **LLM** | OpenAI `gpt-5-mini` | Powers the Analyst Copilot and Chat. Routed via custom AI Gateway. |
-| **Embeddings** | OpenAI `text-embedding-3-small` | Vectorizes the internal knowledge base documents. |
+| **LLM** | Google `gemini-2.0-flash` | Powers the Analyst Copilot and Chat via Google AI Studio. |
+| **Embeddings** | Google `gemini-embedding-2` | Vectorizes the internal knowledge base documents. |
 | **Vector Store** | ChromaDB | Persistent local database storing 57 RAG knowledge chunks. |
 | **RAG Framework**| LangChain LCEL | Orchestrates `RetrievalQA` and `ConversationalRetrievalChain`. |
 
@@ -72,15 +72,22 @@ graph TD
 
 ## 🚀 Setup & Installation
 
-### 1. Start the Backend
+### 1. Set your Gemini API key
+```bash
+cd backend
+cp .env.template .env
+# Edit .env and paste your GOOGLE_API_KEY from https://aistudio.google.com
+```
+
+### 2. Start the Backend
 ```bash
 cd backend
 pip install -r requirements.txt
 python -m uvicorn main:app --reload --port 8000
 ```
-*On the first run, ChromaDB will automatically embed the 5 knowledge base documents.*
+*On the first run, ChromaDB will automatically embed the 5 knowledge base documents (~15 seconds).*
 
-### 2. Start the Frontend
+### 3. Start the Frontend
 ```bash
 cd frontend
 npm install

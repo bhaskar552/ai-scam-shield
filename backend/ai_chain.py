@@ -16,7 +16,7 @@ from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain_core.chat_history import BaseChatMessageHistory
 from langchain_community.chat_message_histories import ChatMessageHistory
-from langchain_openai import ChatOpenAI
+from langchain_google_genai import ChatGoogleGenerativeAI
 from rag_engine import get_retriever
 
 logger = logging.getLogger(__name__)
@@ -25,14 +25,12 @@ logger = logging.getLogger(__name__)
 _chat_histories: dict[str, ChatMessageHistory] = {}
 
 
-def _get_llm(temperature: float = 0.2) -> ChatOpenAI:
-    """Return GPT-5-Mini via LangChain."""
-    api_key = os.getenv("OPENAI_API_KEY")
-    api_base = os.getenv("OPENAI_API_BASE")
-    return ChatOpenAI(
-        model="gpt-5-mini",
-        openai_api_key=api_key,
-        openai_api_base=api_base,
+def _get_llm(temperature: float = 0.2) -> ChatGoogleGenerativeAI:
+    """Return Gemini 1.5 Flash via LangChain."""
+    api_key = os.getenv("GOOGLE_API_KEY")
+    return ChatGoogleGenerativeAI(
+        model="gemini-2.0-flash",
+        google_api_key=api_key,
         temperature=temperature,
     )
 
