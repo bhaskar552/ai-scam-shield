@@ -4,6 +4,7 @@ Endpoints:
   GET  /health            → RAG status check
   GET  /transactions      → SSE stream of synthetic transactions
   POST /score_risk        → Weighted rule-based risk scoring
+  POST /submit_transaction → Manual transaction submission + ML scoring
   POST /copilot_summary   → LangChain RAG + Gemini explainability
   POST /analyst_chat      → ConversationalRetrievalChain multi-turn chat
   DELETE /analyst_chat/{session_id} → Clear chat memory
@@ -13,6 +14,8 @@ import asyncio
 import json
 import logging
 import os
+import uuid
+import random
 from contextlib import asynccontextmanager
 from typing import Any
 
@@ -30,6 +33,9 @@ from ml_scorer import load_model, predict_risk, get_model_info, get_fired_explan
 load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s — %(message)s")
 logger = logging.getLogger(__name__)
+
+# ─── Shared queue for injecting manual transactions into the SSE stream ──────
+_injected_transactions: list[dict] = []
 
 # ─── Startup: Initialize RAG ──────────────────────────────────────────────────
 @asynccontextmanager
@@ -122,7 +128,7 @@ async def health():
             ]
         },
         "copilot": {
-            "llm": "Gemini 2.0 Flash",
+            "llm": "Gemini 3.6 Flash",
             "embeddings": "models/gemini-embedding-2",
             "vector_store": "ChromaDB"
         }
@@ -137,6 +143,11 @@ async def stream_transactions():
     """
     async def event_generator():
         while True:
+            # Flush any manually submitted transactions first
+            while _injected_transactions:
+                itx = _injected_transactions.pop(0)
+                yield f"data: {json.dumps(itx)}\n\n"
+                await asyncio.sleep(0.3)
             tx = generate_transaction()
             score, level = predict_risk(tx)
             tx["risk_score"] = score
@@ -153,6 +164,91 @@ async def stream_transactions():
             "X-Accel-Buffering": "no",
         },
     )
+
+
+class ManualTransactionPayload(BaseModel):
+    amount: float
+    sender_name: str
+    beneficiary_name: str
+    beneficiary_bank: str = "Chase"
+    is_new_beneficiary: bool = False
+    time_since_account_creation_days: int = 365
+    transaction_type: str = "P2P"
+    channel: str = "Mobile App"
+    velocity_1hr: int = 1
+
+
+@app.post("/submit_transaction")
+async def submit_transaction(payload: ManualTransactionPayload):
+    """
+    Manual transaction submission endpoint.
+    Accepts user-filled payment details, auto-generates PaySim-compatible
+    balance fields, runs XGBoost ML scoring, and injects into the SSE stream.
+    """
+    p = payload.model_dump()
+    amount = p["amount"]
+
+    # Auto-generate PaySim-compatible balance fields based on transaction characteristics
+    is_suspicious = (
+        amount > 5000
+        and p["is_new_beneficiary"]
+        and p["time_since_account_creation_days"] < 30
+    )
+
+    if is_suspicious:
+        # Simulate a suspicious pattern: balance ≈ amount, destination empty
+        old_balance_org = round(amount + random.uniform(0, 500), 2)
+        new_balance_org = max(0.0, round(old_balance_org - amount, 2))
+        old_balance_dest = 0.0
+        new_balance_dest = amount
+    else:
+        # Normal pattern: healthy balance well above amount
+        old_balance_org = round(random.uniform(amount * 3, amount * 20), 2)
+        new_balance_org = round(old_balance_org - amount, 2)
+        old_balance_dest = round(random.uniform(500, 50000), 2)
+        new_balance_dest = round(old_balance_dest + amount, 2)
+
+    tx = {
+        "transaction_id": str(uuid.uuid4()),
+        "amount": amount,
+        "sender_name": p["sender_name"],
+        "sender_account_id": f"ACC-{random.randint(100000, 999999)}",
+        "beneficiary_name": p["beneficiary_name"],
+        "beneficiary_bank": p["beneficiary_bank"],
+        "is_new_beneficiary": p["is_new_beneficiary"],
+        "velocity_1hr": p["velocity_1hr"],
+        "time_since_account_creation_days": p["time_since_account_creation_days"],
+        "transaction_type": p["transaction_type"],
+        "channel": p["channel"],
+        "oldbalanceOrg": old_balance_org,
+        "newbalanceOrig": new_balance_org,
+        "oldbalanceDest": old_balance_dest,
+        "newbalanceDest": new_balance_dest,
+        "manual_submission": True,
+    }
+
+    # Run ML scoring
+    score, level = predict_risk(tx)
+    tx["risk_score"] = score
+    tx["risk_level"] = level
+
+    explanation = get_fired_explanation(tx)
+    ml_info = get_model_info()
+
+    # Inject into the live SSE stream
+    _injected_transactions.append(tx)
+
+    return {
+        "transaction": tx,
+        "scoring": {
+            "risk_score": score,
+            "risk_level": level,
+            "scoring_method": "ML — " + ml_info.get("model_type", "XGBoost"),
+            "model_roc_auc": ml_info.get("roc_auc"),
+            "model_explanation": explanation,
+            "top_features": ml_info.get("feature_importance", {}),
+        },
+    }
 
 
 @app.post("/score_risk")

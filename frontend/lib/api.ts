@@ -86,3 +86,42 @@ export function subscribeToTransactions(
   es.onerror = onError;
   return es;
 }
+
+export interface ManualTransactionPayload {
+  amount: number;
+  sender_name: string;
+  beneficiary_name: string;
+  beneficiary_bank: string;
+  is_new_beneficiary: boolean;
+  time_since_account_creation_days: number;
+  transaction_type: string;
+  channel: string;
+  velocity_1hr: number;
+}
+
+export interface SubmitTransactionResult {
+  transaction: Transaction;
+  scoring: {
+    risk_score: number;
+    risk_level: string;
+    scoring_method: string;
+    model_roc_auc: number;
+    model_explanation: string[];
+    top_features: Record<string, number>;
+  };
+}
+
+export async function submitTransaction(
+  payload: ManualTransactionPayload
+): Promise<SubmitTransactionResult> {
+  const res = await fetch(`${API_BASE}/submit_transaction`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "Unknown error" }));
+    throw new Error(err.detail || `HTTP ${res.status}`);
+  }
+  return res.json();
+}

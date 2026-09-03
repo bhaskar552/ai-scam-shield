@@ -7,6 +7,7 @@ import AlertQueueView from "@/components/AlertQueueView";
 import AnalyticsView from "@/components/AnalyticsView";
 import NotificationsView from "@/components/NotificationsView";
 import SettingsView from "@/components/SettingsView";
+import SendPaymentView from "@/components/SendPaymentView";
 import { Transaction, subscribeToTransactions } from "@/lib/api";
 
 const MAX_ROWS = 500; // rolling window — keeps last 500 txns, stream never stops
@@ -61,6 +62,7 @@ export default function DashboardPage() {
         <header className="flex items-center justify-between px-6 py-3 border-b border-border-main bg-background">
           <div>
             <h1 className="text-base font-bold text-text-main">
+             {currentView === "send" && "Send Payment"}
               {currentView === "monitor" && "Fraud Operations Center"}
               {currentView === "alerts" && "Alert Queue"}
               {currentView === "analytics" && "Live Analytics"}
@@ -89,6 +91,15 @@ export default function DashboardPage() {
 
         {/* Views */}
         <div className="flex-1 overflow-hidden">
+          {currentView === "send" && (
+            <SendPaymentView
+              onTransactionScored={(tx) => {
+                setTransactions((prev) => [tx, ...prev]);
+                setSelected(tx);
+                setCurrentView("monitor");
+              }}
+            />
+          )}
           {currentView === "monitor" && (
             <TransactionTable
               transactions={transactions}
