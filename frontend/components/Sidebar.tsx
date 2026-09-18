@@ -4,7 +4,6 @@ const navItems = [
   { icon: Activity, label: "Live Monitor", id: "monitor" },
   { icon: AlertTriangle, label: "Alert Queue", id: "alerts" },
   { icon: BarChart3, label: "Analytics", id: "analytics" },
-  { icon: Library, label: "AI Knowledge Base", id: "knowledge" },
   { icon: Settings, label: "Settings", id: "settings" },
 ];
 
