@@ -112,7 +112,7 @@ export default function CopilotPanel({ transaction, onClose }: CopilotPanelProps
             </div>
             <div>
               <h2 className="font-bold text-text-main text-sm">AI Analyst Copilot</h2>
-              <p className="text-[10px] text-slate-500">Gemini · LangChain RAG · ChromaDB · XGBoost</p>
+              <p className="text-[10px] text-slate-500">GPT-5-mini · LangChain RAG · ChromaDB · XGBoost</p>
             </div>
           </div>
           <button
@@ -193,7 +193,7 @@ export default function CopilotPanel({ transaction, onClose }: CopilotPanelProps
               <Loader2 className="w-6 h-6 animate-spin text-indigo-400" />
               <div className="text-center">
                 <p className="text-sm font-medium text-slate-300">Querying knowledge base...</p>
-                <p className="text-xs text-slate-600 mt-1">ChromaDB → Gemini Embeddings → LLM</p>
+                <p className="text-xs text-slate-600 mt-1">ChromaDB → Embeddings → GPT-5-mini</p>
               </div>
             </div>
           )}
@@ -203,7 +203,7 @@ export default function CopilotPanel({ transaction, onClose }: CopilotPanelProps
             <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/30">
               <p className="text-xs font-semibold text-red-400 mb-1">AI Analysis Error</p>
               <p className="text-xs text-red-300">{error}</p>
-              <p className="text-[10px] text-slate-500 mt-2">Ensure GOOGLE_API_KEY is set in backend/.env</p>
+              <p className="text-[10px] text-slate-500 mt-2">Ensure OPENAI_API_KEY and OPENAI_API_BASE are set in backend/.env</p>
             </div>
           )}
 

@@ -5,33 +5,51 @@ Uses the modern LCEL (LangChain Expression Language) API.
 Two chains:
   1. run_copilot_chain   → create_retrieval_chain for transaction explanation
   2. run_analyst_chat    → RunnableWithMessageHistory for multi-turn chat
+
+Configured for the hackathon AI Gateway (OpenAI-compatible) with gpt-5-mini.
 """
 
 import os
 import json
 import logging
+from pathlib import Path
+
+import httpx
 from langchain.chains import create_retrieval_chain
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain_core.chat_history import BaseChatMessageHistory
 from langchain_community.chat_message_histories import ChatMessageHistory
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_openai import ChatOpenAI
 from rag_engine import get_retriever
 
 logger = logging.getLogger(__name__)
+
+# ─── SSL certificate for the AI Gateway ───────────────────────────────────────
+CERT_PATH = Path(__file__).parent / "server.crt"
 
 # ─── In-memory session store ──────────────────────────────────────────────────
 _chat_histories: dict[str, ChatMessageHistory] = {}
 
 
-def _get_llm(temperature: float = 0.2) -> ChatGoogleGenerativeAI:
-    """Return Gemini 1.5 Flash via LangChain."""
-    api_key = os.getenv("GOOGLE_API_KEY")
-    return ChatGoogleGenerativeAI(
-        model="gemini-2.0-flash",
-        google_api_key=api_key,
+def _get_http_client():
+    """Return an httpx client with SSL cert if available."""
+    if CERT_PATH.exists():
+        return httpx.Client(verify=str(CERT_PATH))
+    return httpx.Client()
+
+
+def _get_llm(temperature: float = 0.2) -> ChatOpenAI:
+    """Return gpt-5-mini via the hackathon AI Gateway."""
+    api_key = os.getenv("OPENAI_API_KEY")
+    api_base = os.getenv("OPENAI_API_BASE")
+    return ChatOpenAI(
+        model="gpt-5-mini",
+        openai_api_key=api_key,
+        openai_api_base=api_base,
         temperature=temperature,
+        http_client=_get_http_client(),
     )
 
 
@@ -42,7 +60,7 @@ def _get_session_history(session_id: str) -> BaseChatMessageHistory:
     return _chat_histories[session_id]
 
 
-# ─── Chain 1: Copilot Summary (RAG + Gemini via LCEL) ────────────────────────
+# ─── Chain 1: Copilot Summary (RAG + GPT-5-mini via LCEL) ────────────────────
 
 COPILOT_SYSTEM_PROMPT = """You are a senior fraud analyst at a major US bank specializing in \
 FedNow and RTP instant payment fraud detection.

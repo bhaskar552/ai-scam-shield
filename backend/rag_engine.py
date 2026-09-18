@@ -2,6 +2,8 @@
 rag_engine.py — LangChain + ChromaDB RAG Engine
 Embeds the fraud knowledge base into ChromaDB on first run.
 Exposes a retriever used by ai_chain.py for all LLM calls.
+
+Uses the hackathon AI Gateway (OpenAI-compatible) with text-embedding-3-small.
 """
 
 import os
@@ -9,10 +11,11 @@ import glob
 import logging
 from pathlib import Path
 
+import httpx
 from dotenv import load_dotenv
 from langchain_community.document_loaders import TextLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_google_genai import GoogleGenerativeAIEmbeddings
+from langchain_openai import OpenAIEmbeddings
 from langchain_chroma import Chroma
 
 load_dotenv()
@@ -25,21 +28,37 @@ KNOWLEDGE_BASE_DIR = BASE_DIR / "knowledge_base"
 CHROMA_PERSIST_DIR = str(BASE_DIR / "chroma_db")
 COLLECTION_NAME = "fraud_knowledge"
 
+# SSL certificate for the AI Gateway
+CERT_PATH = BASE_DIR / "server.crt"
+
 # ─── Globals (initialized once at startup) ───────────────────────────────────
 _vectorstore: Chroma | None = None
 _retriever = None
 
 
+def _get_http_client():
+    """Return an httpx client with SSL cert if available."""
+    if CERT_PATH.exists():
+        logger.info(f"Using SSL certificate: {CERT_PATH}")
+        return httpx.Client(verify=str(CERT_PATH))
+    else:
+        logger.warning("server.crt not found — using default SSL verification")
+        return httpx.Client()
+
+
 def _get_embeddings():
-    """Return Google Gemini embeddings model."""
-    api_key = os.getenv("GOOGLE_API_KEY")
+    """Return OpenAI embeddings via the hackathon AI Gateway."""
+    api_key = os.getenv("OPENAI_API_KEY")
+    api_base = os.getenv("OPENAI_API_BASE")
     if not api_key:
         raise ValueError(
-            "GOOGLE_API_KEY not set. Copy .env.template to .env and add your key."
+            "OPENAI_API_KEY not set. Copy .env.template to .env and add your key."
         )
-    return GoogleGenerativeAIEmbeddings(
-        model="models/gemini-embedding-2",
-        google_api_key=api_key,
+    return OpenAIEmbeddings(
+        model="text-embedding-3-small",
+        openai_api_key=api_key,
+        openai_api_base=api_base,
+        http_client=_get_http_client(),
     )
 
 

@@ -47,7 +47,7 @@ async def lifespan(app: FastAPI):
         logger.error(f"❌ ML model load failed: {e}")
 
     # Initialize RAG engine
-    logger.info("Initializing RAG engine (ChromaDB + Gemini Embeddings)...")
+    logger.info("Initializing RAG engine (ChromaDB + AI Gateway Embeddings)...")
     try:
         count = initialize_rag()
         logger.info(f"✅ RAG engine ready — {count} chunks embedded in ChromaDB")
@@ -122,9 +122,10 @@ async def health():
             ]
         },
         "copilot": {
-            "llm": "Gemini 2.0 Flash",
-            "embeddings": "models/gemini-embedding-2",
-            "vector_store": "ChromaDB"
+            "llm": "gpt-5-mini",
+            "embeddings": "text-embedding-3-small",
+            "vector_store": "ChromaDB",
+            "gateway": "BFS AI Gateway"
         }
     }
 
@@ -202,7 +203,7 @@ async def copilot_summary(tx: TransactionPayload):
         logger.error(f"Copilot chain error: {e}")
         raise HTTPException(
             status_code=500,
-            detail=f"AI analysis failed: {str(e)}. Ensure GOOGLE_API_KEY is set in .env",
+            detail=f"AI analysis failed: {str(e)}. Ensure OPENAI_API_KEY is set in .env",
         )
 
 
@@ -223,7 +224,7 @@ async def analyst_chat(request: AnalystChatRequest):
         logger.error(f"Analyst chat error: {e}")
         raise HTTPException(
             status_code=500,
-            detail=f"Chat failed: {str(e)}. Ensure GOOGLE_API_KEY is set in .env",
+            detail=f"Chat failed: {str(e)}. Ensure OPENAI_API_KEY is set in .env",
         )
 
 

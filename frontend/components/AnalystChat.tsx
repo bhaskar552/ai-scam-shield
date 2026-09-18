@@ -70,7 +70,7 @@ export default function AnalystChat({ transaction, sessionId }: AnalystChatProps
         </div>
         <div>
           <p className="text-xs font-semibold text-text-main">Analyst Copilot</p>
-          <p className="text-[9px] text-slate-500">Powered by Gemini · LangChain RAG</p>
+          <p className="text-[9px] text-slate-500">Powered by GPT-5-mini · LangChain RAG</p>
         </div>
       </div>
 

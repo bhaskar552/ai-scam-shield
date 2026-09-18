@@ -18,7 +18,7 @@ export default function NotificationsView() {
       id: 2,
       type: "success",
       title: "Model Retraining Completed",
-      message: "Gemini embedding weights have been successfully updated with the latest scam case studies.",
+      message: "Embedding weights have been successfully updated with the latest scam case studies.",
       time: "1 hour ago",
       icon: CheckCircle2,
       color: "text-emerald-500",

@@ -84,8 +84,8 @@ export default function SettingsView() {
                 <p className="text-xs text-text-muted mt-1">Which LLM powers the Analyst Copilot.</p>
               </div>
               <select className="bg-panel-hover border border-border-main text-text-main text-sm rounded-lg px-3 py-1.5 outline-none">
-                <option>Gemini 1.5 Flash (Fast)</option>
-                <option>Gemini 1.5 Pro (Reasoning)</option>
+                <option>GPT-5-mini (Default)</option>
+                <option>GPT-5-mini (Reasoning)</option>
               </select>
             </div>
           </div>
