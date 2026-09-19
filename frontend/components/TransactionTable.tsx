@@ -8,7 +8,7 @@ interface TransactionTableProps {
   onSelect: (tx: Transaction) => void;
 }
 
-function RiskBadge({ level, score }: { level: string; score: number }) {
+function RiskBadge({ level, score, category }: { level: string; score: number, category?: string }) {
   const cfg = {
     Safe: { bg: "bg-emerald-500/10", text: "text-emerald-400", border: "border-emerald-500/30", icon: CheckCircle2 },
     Medium: { bg: "bg-yellow-500/10", text: "text-yellow-400", border: "border-yellow-500/30", icon: Clock },
@@ -17,10 +17,17 @@ function RiskBadge({ level, score }: { level: string; score: number }) {
 
   const Icon = cfg.icon;
   return (
-    <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-lg border text-xs font-semibold ${cfg.bg} ${cfg.text} ${cfg.border}`}>
-      <Icon className="w-3 h-3" />
-      {level} · {score}
-    </span>
+    <div className="flex flex-col items-start gap-1">
+      <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-lg border text-xs font-semibold ${cfg.bg} ${cfg.text} ${cfg.border}`}>
+        <Icon className="w-3 h-3" />
+        {level} • {score}
+      </span>
+      {level === "Critical" && category && category !== "None" && (
+        <span className="text-[9px] font-bold text-red-400 uppercase tracking-wider bg-red-950/50 px-1.5 py-0.5 rounded border border-red-500/20">
+          {category}
+        </span>
+      )}
+    </div>
   );
 }
 
@@ -87,13 +94,15 @@ export default function TransactionTable({ transactions, selectedId, onSelect }:
                 `}
               >
                 {/* Transaction info */}
-                <div className="min-w-0">
+                <div className="min-w-0 flex flex-col justify-center">
                   <div className="flex items-center gap-1.5">
                     <p className="text-sm font-semibold text-text-main truncate">{tx.sender_name}</p>
                     <ArrowUpRight className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />
                     <p className="text-sm text-slate-400 truncate">{tx.beneficiary_name}</p>
                   </div>
-                  <p className="text-[10px] text-slate-600 mt-0.5 font-mono">{tx.transaction_id.slice(0, 12)}…</p>
+                  <p className="text-[10px] text-slate-500 mt-0.5 truncate">
+                    {tx.location} • {tx.ip_address} • {tx.device_id}
+                  </p>
                 </div>
 
                 {/* Amount */}
@@ -120,13 +129,13 @@ export default function TransactionTable({ transactions, selectedId, onSelect }:
                 {/* New beneficiary */}
                 <div className="flex items-center">
                   <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${tx.is_new_beneficiary ? "bg-orange-500/20 text-orange-400" : "bg-slate-700/50 text-slate-500"}`}>
-                    {tx.is_new_beneficiary ? "⚠ NEW" : "Known"}
+                    {tx.is_new_beneficiary ? "⚠️ NEW" : "Known"}
                   </span>
                 </div>
 
                 {/* Risk badge */}
                 <div className="flex items-center">
-                  <RiskBadge level={tx.risk_level} score={tx.risk_score} />
+                  <RiskBadge level={tx.risk_level} score={tx.risk_score} category={tx.fraud_category} />
                 </div>
               </div>
             );

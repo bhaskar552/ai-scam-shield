@@ -160,6 +160,26 @@ export default function CopilotPanel({ transaction, onClose }: CopilotPanelProps
                 <p className="text-xs font-bold text-text-main">{transaction.time_since_account_creation_days}d</p>
               </div>
             </div>
+            
+            {/* New fields */}
+            <div className="flex items-center gap-2 bg-panel-hover rounded-lg p-2 col-span-1">
+              <div>
+                <p className="text-[9px] text-slate-500">Location</p>
+                <p className="text-[10px] font-bold text-text-main truncate max-w-[100px]">{transaction.location}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 bg-panel-hover rounded-lg p-2 col-span-1">
+              <div>
+                <p className="text-[9px] text-slate-500">IP Address</p>
+                <p className="text-[10px] font-bold font-mono text-text-main truncate max-w-[100px]">{transaction.ip_address}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 bg-panel-hover rounded-lg p-2 col-span-1">
+              <div>
+                <p className="text-[9px] text-slate-500">Device ID</p>
+                <p className="text-[10px] font-bold font-mono text-text-main truncate max-w-[100px]">{transaction.device_id}</p>
+              </div>
+            </div>
           </div>
         </div>
 

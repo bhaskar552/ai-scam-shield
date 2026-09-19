@@ -120,12 +120,10 @@ def _build_feature_vector(tx: dict) -> np.ndarray:
     return feature_vector
 
 
-def predict_risk(tx: dict) -> tuple[int, str]:
+def predict_risk(tx: dict) -> tuple[int, str, str]:
     """
     Predict fraud risk for a transaction using the trained ML model.
-    Returns (risk_score: int [0-100], risk_level: str ["Safe"|"Medium"|"Critical"])
-
-    This is a drop-in replacement for main.py's compute_risk_score().
+    Returns (risk_score: int [0-100], risk_level: str ["Safe"|"Medium"|"Critical"], fraud_category: str)
     """
     if _model is None:
         raise RuntimeError("ML model not loaded. Call load_model() first.")
@@ -135,11 +133,10 @@ def predict_risk(tx: dict) -> tuple[int, str]:
     # Get fraud probability (index 1 = fraud class)
     fraud_proba = float(_model.predict_proba(feature_vector)[0][1])
 
-    # Apply velocity and account-age boosting ON TOP of the ML score:
-    # These are our domain-specific features PaySim didn't have —
-    # they act as post-processing multipliers on the ML score.
+    # Apply velocity and account-age boosting ON TOP of the ML score
     velocity     = int(tx.get("velocity_1hr", 0))
     account_age  = int(tx.get("time_since_account_creation_days", 999))
+    is_new_bene  = bool(tx.get("is_new_beneficiary", False))
 
     boost = 0.0
     if velocity >= 15:
@@ -158,19 +155,31 @@ def predict_risk(tx: dict) -> tuple[int, str]:
 
     # Combine ML prediction with domain boost, cap at 1.0
     final_proba = min(fraud_proba + boost, 1.0)
-
-    # Scale to 0-100
     risk_score = int(round(final_proba * 100))
 
-    # Determine level using same thresholds as before
+    # Determine level and fraud category
+    fraud_category = "None"
     if risk_score >= 70:
         risk_level = "Critical"
+        amount = float(tx.get("amount", 0))
+        new_balance = float(tx.get("newbalanceOrig", 0))
+        tx_type = tx.get("transaction_type", "TRANSFER")
+        
+        # Simple heuristic categorization for critical alerts
+        if amount > 15000 and new_balance == 0:
+            fraud_category = "Account Takeover (ATO)"
+        elif tx_type == "P2P" and is_new_bene:
+            fraud_category = "APP Scam"
+        elif account_age < 14 and amount > 5000:
+            fraud_category = "Synthetic Identity"
+        else:
+            fraud_category = "Money Mule Network"
     elif risk_score >= 40:
         risk_level = "Medium"
     else:
         risk_level = "Safe"
 
-    return risk_score, risk_level
+    return risk_score, risk_level, fraud_category
 
 
 def get_model_info() -> dict:

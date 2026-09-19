@@ -5,6 +5,7 @@ import TransactionTable from "@/components/TransactionTable";
 import CopilotPanel from "@/components/CopilotPanel";
 import AlertQueueView from "@/components/AlertQueueView";
 import AnalyticsView from "@/components/AnalyticsView";
+import IntegrationsView from "@/components/IntegrationsView";
 import SettingsView from "@/components/SettingsView";
 import { Transaction, subscribeToTransactions } from "@/lib/api";
 
@@ -63,6 +64,7 @@ export default function DashboardPage() {
               {currentView === "monitor" && "Fraud Operations Center"}
               {currentView === "alerts" && "Alert Queue"}
               {currentView === "analytics" && "Live Analytics"}
+              {currentView === "integrations" && "Integrations & APIs"}
               {currentView === "settings" && "Settings"}
             </h1>
             <p className="text-[11px] text-slate-500">
@@ -100,6 +102,7 @@ export default function DashboardPage() {
           {currentView === "analytics" && (
             <AnalyticsView transactions={transactions} />
           )}
+          {currentView === "integrations" && <IntegrationsView />}
           {currentView === "settings" && <SettingsView />}
         </div>
       </main>

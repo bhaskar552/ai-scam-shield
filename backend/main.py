@@ -139,9 +139,10 @@ async def stream_transactions():
     async def event_generator():
         while True:
             tx = generate_transaction()
-            score, level = predict_risk(tx)
+            score, level, category = predict_risk(tx)
             tx["risk_score"] = score
             tx["risk_level"] = level
+            tx["fraud_category"] = category
             payload = json.dumps(tx)
             yield f"data: {payload}\n\n"
             await asyncio.sleep(1.5)
@@ -163,7 +164,7 @@ async def score_risk(tx: TransactionPayload):
     Returns risk_score (0-100), risk_level, model_confidence, and top feature signals.
     """
     tx_dict = tx.model_dump()
-    score, level = predict_risk(tx_dict)
+    score, level, category = predict_risk(tx_dict)
     explanation  = get_fired_explanation(tx_dict)
     ml_info      = get_model_info()
 

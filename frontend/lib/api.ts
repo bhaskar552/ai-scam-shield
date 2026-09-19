@@ -14,6 +14,14 @@ export interface Transaction {
   time_since_account_creation_days: number;
   transaction_type: string;
   channel: string;
+  
+  // New Enriched Fields
+  ip_address: string;
+  location: string;
+  device_id: string;
+  fraud_category?: string;
+
+  // Added by risk engine
   risk_score: number;
   risk_level: "Safe" | "Medium" | "Critical";
 }

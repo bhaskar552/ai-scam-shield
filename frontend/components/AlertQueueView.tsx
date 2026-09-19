@@ -43,11 +43,23 @@ export default function AlertQueueView({ transactions, onSelect }: AlertQueueVie
                       <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${tx.risk_level === 'Critical' ? 'bg-red-500/10 text-red-500' : 'bg-yellow-500/10 text-yellow-500'}`}>
                         {tx.risk_level.toUpperCase()}
                       </span>
+                      {tx.risk_level === 'Critical' && tx.fraud_category && tx.fraud_category !== "None" && (
+                        <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-red-950/50 text-red-400 border border-red-500/20">
+                          {tx.fraud_category.toUpperCase()}
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center gap-1.5 text-sm text-text-muted mt-1">
                       <span className="font-semibold">{tx.sender_name}</span>
                       <ArrowUpRight className="w-3.5 h-3.5" />
                       <span>{tx.beneficiary_name}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-[11px] text-slate-500 mt-1">
+                      <span>{tx.location}</span>
+                      <span>•</span>
+                      <span className="font-mono">{tx.ip_address}</span>
+                      <span>•</span>
+                      <span className="font-mono">{tx.device_id}</span>
                     </div>
                   </div>
                 </div>

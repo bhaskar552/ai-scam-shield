@@ -58,6 +58,10 @@ def generate_safe_transaction() -> dict:
         "time_since_account_creation_days":  random.randint(180, 1800),
         "transaction_type":                  random.choice(["P2P", "Bill Payment", "Business", "Payroll"]),
         "channel":                           random.choice(["Mobile App", "Web", "API"]),
+        # New enriched context fields
+        "ip_address":                        fake.ipv4(),
+        "location":                          f"{fake.city()}, {fake.country_code()}",
+        "device_id":                         f"dev_{fake.hexify(text='^^^^^^^^')}",
         # PaySim-compatible balance fields
         "oldbalanceOrg":                     old_balance_org,
         "newbalanceOrig":                    new_balance_org,
@@ -87,6 +91,9 @@ def generate_risky_transaction() -> dict:
         "beneficiary_bank":  random.choice(["Chime", "CashApp Bank", "Varo", "Unknown Routing"]),
         "transaction_type":  random.choice(["P2P", "Wire", "Business"]),
         "channel":           random.choice(["Mobile App", "API"]),
+        "ip_address":        fake.ipv4(),
+        "location":          f"{fake.city()}, {fake.country_code()}",
+        "device_id":         f"dev_{fake.hexify(text='^^^^^^^^')}",
     }
 
     if risk_profile == "account_drain":
