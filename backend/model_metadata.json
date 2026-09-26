@@ -9,20 +9,20 @@
     "dest_was_empty",
     "amount_to_balance_ratio"
   ],
-  "training_rows": 2872684,
-  "test_accuracy": 0.9999,
-  "test_precision": 0.9867,
+  "training_rows": 208000,
+  "test_accuracy": 0.9998,
+  "test_precision": 0.9994,
   "test_recall": 0.9963,
-  "test_f1": 0.9915,
-  "test_roc_auc": 0.9984,
+  "test_f1": 0.9979,
+  "test_roc_auc": 0.9987,
   "feature_importances": {
-    "balance_zeroed": 0.5788347125053406,
-    "amount_to_balance_ratio": 0.3458244204521179,
-    "type_encoded": 0.025277240201830864,
-    "balance_diff_orig": 0.019432421773672104,
-    "balance_diff_dest": 0.01449625100940466,
-    "log_amount": 0.01081621553748846,
-    "dest_was_empty": 0.00531867565587163
+    "balance_zeroed": 0.6548931002616882,
+    "amount_to_balance_ratio": 0.27511414885520935,
+    "type_encoded": 0.02564886026084423,
+    "balance_diff_orig": 0.020032769069075584,
+    "balance_diff_dest": 0.011618792079389095,
+    "log_amount": 0.0066978237591683865,
+    "dest_was_empty": 0.0059945485554635525
   },
   "type_encoder_classes": [
     "CASH_OUT",

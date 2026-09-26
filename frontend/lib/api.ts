@@ -86,3 +86,62 @@ export function subscribeToTransactions(
   es.onerror = onError;
   return es;
 }
+
+export interface Case {
+  case_id: string;
+  transaction: any;
+  action_taken: string;
+  status: "open" | "investigating" | "resolved";
+  resolution: string | null;
+  analyst_notes: string;
+  copilot_summary: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export async function createCase(
+  transaction: Transaction,
+  action_taken: string,
+  copilot_summary: string = ""
+): Promise<Case> {
+  const res = await fetch(`${API_BASE}/cases`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ transaction, action_taken, copilot_summary }),
+  });
+  if (!res.ok) throw new Error("Failed to create case");
+  return res.json();
+}
+
+export async function fetchCases(status?: string): Promise<Case[]> {
+  const url = status ? `${API_BASE}/cases?status=${status}` : `${API_BASE}/cases`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error("Failed to fetch cases");
+  return res.json();
+}
+
+export async function updateCase(
+  caseId: string,
+  updates: Partial<Case>
+): Promise<Case> {
+  const res = await fetch(`${API_BASE}/cases/${caseId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(updates),
+  });
+  if (!res.ok) throw new Error("Failed to update case");
+  return res.json();
+}
+
+export async function generateSar(
+  transaction: Transaction,
+  copilot_summary: string = ""
+) {
+  const res = await fetch(`${API_BASE}/generate_sar`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ transaction, copilot_summary }),
+  });
+  if (!res.ok) throw new Error("Failed to generate SAR");
+  return res.json();
+}

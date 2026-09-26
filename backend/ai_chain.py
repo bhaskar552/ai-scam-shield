@@ -245,3 +245,104 @@ def clear_session(session_id: str) -> None:
     """Clear chat history for a given session."""
     if session_id in _chat_histories:
         del _chat_histories[session_id]
+
+
+# ─── Chain 3: SAR Report Generation ─────────────────────────────────────────
+
+SAR_PROMPT = ChatPromptTemplate.from_messages([
+    ("system", """You are a compliance officer at a major US bank. Generate a Suspicious Activity Report (SAR) 
+draft based on the transaction data and AI analysis provided.
+
+Use the following retrieved regulatory context:
+{context}
+
+Return ONLY valid JSON with NO markdown fences in this exact format:
+{{
+  "filing_type": "SAR — Suspicious Activity Report (FinCEN Form 111)",
+  "subject": {{
+    "name": "Sender's full name",
+    "account_id": "Sender's account ID",
+    "institution": "Beneficiary bank name"
+  }},
+  "suspicious_activity": {{
+    "description": "2-3 sentence description of why this is suspicious",
+    "date": "Transaction date/time",
+    "amount": "Dollar amount as string",
+    "instrument_type": "FedNow Instant Payment / Wire / P2P"
+  }},
+  "narrative": "Detailed 3-5 sentence narrative explaining the suspicious activity, patterns observed, and why it warrants investigation. Reference specific risk factors.",
+  "regulatory_citations": [
+    "Specific FinCEN/BSA/CFPB regulation that applies"
+  ],
+  "risk_indicators": [
+    "Specific risk indicator from the transaction"
+  ],
+  "recommended_actions": [
+    "Specific action to take"
+  ]
+}}"""),
+    ("human", "{input}"),
+])
+
+
+def run_sar_generation(transaction: dict, copilot_summary: str = "") -> dict:
+    """Generate a SAR report using RAG + LLM."""
+    retriever = get_retriever()
+    llm = _get_llm(temperature=0.1)
+
+    combine_docs_chain = create_stuff_documents_chain(llm, SAR_PROMPT)
+    rag_chain = create_retrieval_chain(retriever, combine_docs_chain)
+
+    tx_str = (
+        f"Transaction ID: {transaction.get('transaction_id', 'N/A')}\n"
+        f"Amount: ${transaction.get('amount', 0):,.2f}\n"
+        f"Sender: {transaction.get('sender_name', 'Unknown')} (Account: {transaction.get('sender_account_id', 'N/A')})\n"
+        f"Beneficiary: {transaction.get('beneficiary_name', 'Unknown')}\n"
+        f"Beneficiary Bank: {transaction.get('beneficiary_bank', 'Unknown')}\n"
+        f"Is New Beneficiary: {transaction.get('is_new_beneficiary', False)}\n"
+        f"Velocity (last 1hr): {transaction.get('velocity_1hr', 0)} transactions\n"
+        f"Sender Account Age: {transaction.get('time_since_account_creation_days', 0)} days\n"
+        f"Transaction Type: {transaction.get('transaction_type', 'Unknown')}\n"
+        f"Risk Score: {transaction.get('risk_score', 'N/A')}\n"
+        f"Risk Level: {transaction.get('risk_level', 'Unknown')}\n"
+    )
+    if copilot_summary:
+        tx_str += f"\nAI Copilot Analysis:\n{copilot_summary}\n"
+
+    result = rag_chain.invoke({"input": tx_str})
+    raw_answer = result.get("answer", "{}")
+
+    try:
+        clean = raw_answer.strip()
+        if "```" in clean:
+            parts = clean.split("```")
+            for part in parts:
+                part = part.strip()
+                if part.startswith("json"):
+                    part = part[4:].strip()
+                try:
+                    return json.loads(part)
+                except json.JSONDecodeError:
+                    continue
+        return json.loads(clean)
+    except json.JSONDecodeError:
+        logger.warning("SAR LLM returned non-JSON; using fallback")
+        return {
+            "filing_type": "SAR — Suspicious Activity Report",
+            "subject": {
+                "name": transaction.get("sender_name", "Unknown"),
+                "account_id": transaction.get("sender_account_id", "N/A"),
+                "institution": transaction.get("beneficiary_bank", "Unknown"),
+            },
+            "suspicious_activity": {
+                "description": raw_answer[:300] if raw_answer else "Analysis unavailable",
+                "date": "Current",
+                "amount": f"${transaction.get('amount', 0):,.2f}",
+                "instrument_type": transaction.get("transaction_type", "Unknown"),
+            },
+            "narrative": raw_answer[:500] if raw_answer else "Unable to generate narrative",
+            "regulatory_citations": ["Manual review required"],
+            "risk_indicators": ["AI analysis could not be parsed"],
+            "recommended_actions": ["Escalate to compliance team for manual SAR preparation"],
+        }
+

@@ -2,13 +2,14 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import {
   X, Loader2, CheckCircle, AlertTriangle, ArrowUpRight,
-  Bot, Clock, DollarSign, Activity, ShieldCheck, Calendar
+  Bot, Clock, DollarSign, Activity, ShieldCheck, Calendar, FileText
 } from "lucide-react";
-import { Transaction, CopilotResult, fetchCopilotSummary } from "@/lib/api";
+import { Transaction, CopilotResult, fetchCopilotSummary, createCase, generateSar, SarReport } from "@/lib/api";
 import RiskGauge from "./RiskGauge";
 import ExplainabilityCards from "./ExplainabilityCards";
 import RagContextViewer from "./RagContextViewer";
 import AnalystChat from "./AnalystChat";
+import SarReportModal from "./SarReportModal";
 
 interface CopilotPanelProps {
   transaction: Transaction | null;
@@ -25,6 +26,7 @@ const ACTION_STYLES = {
 
 // ─── Persisted decision store (survives re-opens) ────────────────────────────
 const _decisions = new Map<string, ActionType>();
+const _sessions = new Map<string, string>(); // persist chat session IDs per transaction
 
 // ─── Typewriter hook ─────────────────────────────────────────────────────────
 function useTypewriter(text: string, active: boolean) {
@@ -44,19 +46,32 @@ function useTypewriter(text: string, active: boolean) {
 }
 
 export default function CopilotPanel({ transaction, onClose }: CopilotPanelProps) {
-  const [result,      setResult]      = useState<CopilotResult | null>(null);
-  const [loading,     setLoading]     = useState(false);
-  const [error,       setError]       = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<CopilotResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
   const [actionTaken, setActionTaken] = useState<ActionType>(null);
-  const [toast,       setToast]       = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+  
+  const [sarReport, setSarReport] = useState<SarReport | null>(null);
+  const [sarLoading, setSarLoading] = useState(false);
+  const [showSarModal, setShowSarModal] = useState(false);
 
-  const sessionId = transaction ? `session-${transaction.transaction_id.slice(0, 8)}` : "";
-  const summaryText = useTypewriter(result?.summary ?? "", !loading && !!result);
+  // We only run the typewriter the FIRST time the result loads.
+  const summaryText = useTypewriter(result?.summary || "", !!result && !actionTaken);
+  
+  const [sessionId, setSessionId] = useState<string>("");
 
-  // ─── Load persisted decision when transaction changes ───────────────────────
   useEffect(() => {
     if (transaction) {
-      setActionTaken(_decisions.get(transaction.transaction_id) ?? null);
+      setActionTaken(_decisions.get(transaction.transaction_id) || null);
+      
+      let sid = _sessions.get(transaction.transaction_id);
+      if (!sid) {
+        sid = `chat-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+        _sessions.set(transaction.transaction_id, sid);
+      }
+      setSessionId(sid);
     }
   }, [transaction]);
 
@@ -78,12 +93,35 @@ export default function CopilotPanel({ transaction, onClose }: CopilotPanelProps
     if (transaction) analyze(transaction);
   }, [transaction, analyze]);
 
-  function handleAction(action: ActionType) {
+  async function handleAction(action: ActionType) {
     if (!transaction || !action) return;
-    _decisions.set(transaction.transaction_id, action);   // persist in memory
+    _decisions.set(transaction.transaction_id, action);
     setActionTaken(action);
     setToast(`Action saved: ${action}`);
+    
+    if (action === "Hold Funds" || action === "Escalate to Tier 2") {
+      try {
+        await createCase(transaction, action, result?.summary || "");
+      } catch (err) {
+        console.error("Failed to create case:", err);
+      }
+    }
+    
     setTimeout(() => setToast(null), 3000);
+  }
+
+  async function handleGenerateSar() {
+    if (!transaction) return;
+    setShowSarModal(true);
+    setSarLoading(true);
+    try {
+      const rep = await generateSar(transaction, result?.summary || "");
+      setSarReport(rep);
+    } catch (err) {
+      console.error("Failed to generate SAR:", err);
+    } finally {
+      setSarLoading(false);
+    }
   }
 
   if (!transaction) return null;
@@ -96,15 +134,12 @@ export default function CopilotPanel({ transaction, onClose }: CopilotPanelProps
 
   return (
     <>
-      {/* Backdrop */}
       <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40" onClick={onClose} />
 
-      {/* Panel */}
       <div
         className="fixed top-0 right-0 h-full w-full max-w-lg bg-panel border-l border-border-main z-50 flex flex-col overflow-hidden shadow-2xl shadow-black/60"
         style={{ animation: "slideIn 0.3s cubic-bezier(0.16,1,0.3,1)" }}
       >
-        {/* ── Header ── */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-border-main bg-background">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-500/30">
@@ -115,16 +150,26 @@ export default function CopilotPanel({ transaction, onClose }: CopilotPanelProps
               <p className="text-[10px] text-slate-500">GPT-5-mini · LangChain RAG · ChromaDB · XGBoost</p>
             </div>
           </div>
-          <button
-            id="copilot-close"
-            onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-panel-hover text-text-muted hover:text-text-main transition-colors"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-2">
+            {transaction.risk_level === "Critical" && (
+              <button
+                onClick={handleGenerateSar}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600/10 hover:bg-indigo-600/20 text-indigo-400 text-xs font-semibold transition-colors border border-indigo-500/20"
+              >
+                <FileText className="w-3.5 h-3.5" />
+                Generate SAR
+              </button>
+            )}
+            <button
+              id="copilot-close"
+              onClick={onClose}
+              className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-panel-hover text-text-muted hover:text-text-main transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
-        {/* ── Transaction Quick-Info ── */}
         <div className="px-5 py-3 border-b border-border-main bg-panel">
           <div className="flex items-center gap-1.5 text-xs text-slate-400 mb-3">
             <span className="font-semibold text-text-main">{transaction.sender_name}</span>
@@ -163,10 +208,7 @@ export default function CopilotPanel({ transaction, onClose }: CopilotPanelProps
           </div>
         </div>
 
-        {/* ── Scrollable Body ── */}
         <div className="flex-1 overflow-y-auto p-5 space-y-5">
-
-          {/* Persisted decision banner */}
           {actionTaken && decisionBanner && (() => {
             const Icon = decisionBanner.icon;
             return (
@@ -179,7 +221,6 @@ export default function CopilotPanel({ transaction, onClose }: CopilotPanelProps
             );
           })()}
 
-          {/* Risk Gauge */}
           <div className="flex flex-col items-center py-5 bg-panel-hover rounded-2xl border border-border-main">
             <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 mb-2">
               ML Risk Score
@@ -187,7 +228,6 @@ export default function CopilotPanel({ transaction, onClose }: CopilotPanelProps
             <RiskGauge score={transaction.risk_score} level={transaction.risk_level} />
           </div>
 
-          {/* Loading state */}
           {loading && (
             <div className="flex flex-col items-center gap-3 py-8 text-slate-500">
               <Loader2 className="w-6 h-6 animate-spin text-indigo-400" />
@@ -198,7 +238,6 @@ export default function CopilotPanel({ transaction, onClose }: CopilotPanelProps
             </div>
           )}
 
-          {/* Error state */}
           {error && (
             <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/30">
               <p className="text-xs font-semibold text-red-400 mb-1">AI Analysis Error</p>
@@ -207,10 +246,8 @@ export default function CopilotPanel({ transaction, onClose }: CopilotPanelProps
             </div>
           )}
 
-          {/* AI result — rendered once, no duplicate */}
           {result && !loading && (
             <>
-              {/* AI Summary */}
               <div className="p-4 rounded-xl bg-gradient-to-b from-indigo-500/10 to-transparent border border-indigo-500/20">
                 <div className="flex items-center gap-2 mb-2">
                   <Bot className="w-3.5 h-3.5 text-indigo-400" />
@@ -219,7 +256,6 @@ export default function CopilotPanel({ transaction, onClose }: CopilotPanelProps
                     {result.confidence} confidence
                   </span>
                 </div>
-                {/* summaryText — typewriter animated, shown ONCE */}
                 <p className="text-xs leading-relaxed text-slate-300">{summaryText}</p>
                 {result.fraud_pattern_match && (
                   <div className="mt-2 pt-2 border-t border-indigo-500/20">
@@ -229,13 +265,11 @@ export default function CopilotPanel({ transaction, onClose }: CopilotPanelProps
                 )}
               </div>
 
-              {/* Risk Indicator Flags */}
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">Risk Indicators</p>
                 <ExplainabilityCards flags={result.flags} patternMatch={result.fraud_pattern_match} />
               </div>
 
-              {/* Regulatory note */}
               {result.regulatory_note && (
                 <div className="p-3 rounded-xl bg-violet-500/10 border border-violet-500/20">
                   <p className="text-[9px] font-bold uppercase tracking-wider text-violet-500 mb-1">Regulatory Note</p>
@@ -243,13 +277,11 @@ export default function CopilotPanel({ transaction, onClose }: CopilotPanelProps
                 </div>
               )}
 
-              {/* RAG Knowledge Sources */}
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">Retrieved Knowledge</p>
                 <RagContextViewer docs={result.retrieved_context} />
               </div>
 
-              {/* Analyst Chat */}
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">Ask the AI</p>
                 <AnalystChat transaction={transaction} sessionId={sessionId} />
@@ -258,7 +290,6 @@ export default function CopilotPanel({ transaction, onClose }: CopilotPanelProps
           )}
         </div>
 
-        {/* ── Action Buttons ── */}
         <div className="px-5 py-4 border-t border-border-main bg-background">
           <div className="flex items-center justify-between mb-3">
             <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Recommended Action</p>
@@ -295,13 +326,19 @@ export default function CopilotPanel({ transaction, onClose }: CopilotPanelProps
         </div>
       </div>
 
-      {/* Toast */}
       {toast && (
         <div className="fixed bottom-6 right-6 z-[60] bg-panel border border-border-main text-text-main px-4 py-3 rounded-xl shadow-xl text-sm font-medium animate-fade-in flex items-center gap-2">
           <ShieldCheck className="w-4 h-4 text-emerald-400" />
           {toast}
         </div>
       )}
+
+      <SarReportModal
+        isOpen={showSarModal}
+        onClose={() => setShowSarModal(false)}
+        report={sarReport}
+        loading={sarLoading}
+      />
 
       <style jsx global>{`
         @keyframes slideIn {

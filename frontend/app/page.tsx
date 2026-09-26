@@ -6,18 +6,30 @@ import CopilotPanel from "@/components/CopilotPanel";
 import AlertQueueView from "@/components/AlertQueueView";
 import AnalyticsView from "@/components/AnalyticsView";
 import SettingsView from "@/components/SettingsView";
-import { Transaction, subscribeToTransactions } from "@/lib/api";
+import CaseManagementView from "@/components/CaseManagementView";
+import NetworkGraphView from "@/components/NetworkGraphView";
+import { Transaction, Case, subscribeToTransactions, fetchCases, updateCase } from "@/lib/api";
 
 const MAX_ROWS = 500; // rolling window — keeps last 500 txns, stream never stops
 
 export default function DashboardPage() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [cases, setCases] = useState<Case[]>([]);
   const [selected, setSelected] = useState<Transaction | null>(null);
   const [connected, setConnected] = useState(false);
   const [currentView, setCurrentView] = useState("monitor");
   const esRef = useRef<EventSource | null>(null);
 
   const criticalCount = transactions.filter((t) => t.risk_level === "Critical").length;
+
+  const loadCases = useCallback(async () => {
+    try {
+      const data = await fetchCases();
+      setCases(data);
+    } catch (err) {
+      console.error("Failed to load cases", err);
+    }
+  }, []);
 
   const connect = useCallback(() => {
     if (esRef.current) esRef.current.close();
@@ -41,8 +53,18 @@ export default function DashboardPage() {
 
   useEffect(() => {
     connect();
+    loadCases();
     return () => esRef.current?.close();
-  }, [connect]);
+  }, [connect, loadCases]);
+
+  const handleUpdateCase = async (caseId: string, updates: Partial<Case>) => {
+    try {
+      const updated = await updateCase(caseId, updates);
+      setCases(prev => prev.map(c => c.case_id === caseId ? updated : c));
+    } catch (err) {
+      console.error("Failed to update case", err);
+    }
+  };
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
@@ -62,6 +84,8 @@ export default function DashboardPage() {
             <h1 className="text-base font-bold text-text-main">
               {currentView === "monitor" && "Fraud Operations Center"}
               {currentView === "alerts" && "Alert Queue"}
+              {currentView === "cases" && "Investigation Workflow"}
+              {currentView === "network" && "Network Analysis"}
               {currentView === "analytics" && "Live Analytics"}
               {currentView === "settings" && "Settings"}
             </h1>
@@ -97,6 +121,12 @@ export default function DashboardPage() {
           {currentView === "alerts" && (
             <AlertQueueView transactions={transactions} onSelect={(tx) => setSelected(tx)} />
           )}
+          {currentView === "cases" && (
+            <CaseManagementView cases={cases} onUpdateCase={handleUpdateCase} />
+          )}
+          {currentView === "network" && (
+            <NetworkGraphView transactions={transactions} />
+          )}
           {currentView === "analytics" && (
             <AnalyticsView transactions={transactions} />
           )}
@@ -108,7 +138,10 @@ export default function DashboardPage() {
       {selected && (
         <CopilotPanel
           transaction={selected}
-          onClose={() => setSelected(null)}
+          onClose={() => {
+            setSelected(null);
+            loadCases(); // refresh cases when closing panel in case new one created
+          }}
         />
       )}
     </div>

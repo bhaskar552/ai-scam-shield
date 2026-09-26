@@ -14,6 +14,7 @@ import json
 import logging
 import os
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from typing import Any
 
 from dotenv import load_dotenv
@@ -24,7 +25,7 @@ from pydantic import BaseModel
 
 from mock_stream import generate_transaction
 from rag_engine import initialize_rag, get_doc_count
-from ai_chain import run_copilot_chain, run_analyst_chat, clear_session
+from ai_chain import run_copilot_chain, run_analyst_chat, clear_session, run_sar_generation
 from ml_scorer import load_model, predict_risk, get_model_info, get_fired_explanation
 
 load_dotenv()
@@ -233,6 +234,102 @@ async def clear_chat_session(session_id: str):
     """Clear the chat memory for a given session."""
     clear_session(session_id)
     return {"status": "cleared", "session_id": session_id}
+
+
+# ─── Case Management (In-Memory Store) ───────────────────────────────────────
+
+_cases: dict[str, dict] = {}
+_case_counter = 0
+
+
+class CreateCaseRequest(BaseModel):
+    transaction: dict[str, Any]
+    action_taken: str
+    copilot_summary: str = ""
+
+
+class UpdateCaseRequest(BaseModel):
+    status: str | None = None
+    resolution: str | None = None
+    analyst_notes: str | None = None
+
+
+@app.post("/cases")
+async def create_case(req: CreateCaseRequest):
+    """Create a new investigation case from a flagged transaction."""
+    global _case_counter
+    _case_counter += 1
+    case_id = f"CASE-{_case_counter:03d}"
+    now = datetime.now(timezone.utc).isoformat()
+    case = {
+        "case_id": case_id,
+        "transaction": req.transaction,
+        "action_taken": req.action_taken,
+        "status": "open",
+        "resolution": None,
+        "analyst_notes": "",
+        "copilot_summary": req.copilot_summary,
+        "created_at": now,
+        "updated_at": now,
+    }
+    _cases[case_id] = case
+    logger.info(f"Case created: {case_id} — action: {req.action_taken}")
+    return case
+
+
+@app.get("/cases")
+async def list_cases(status: str | None = None):
+    """List all cases, optionally filtered by status."""
+    cases = list(_cases.values())
+    if status:
+        cases = [c for c in cases if c["status"] == status]
+    cases.sort(key=lambda c: c["created_at"], reverse=True)
+    return cases
+
+
+@app.get("/cases/{case_id}")
+async def get_case(case_id: str):
+    """Get full details of a specific case."""
+    if case_id not in _cases:
+        raise HTTPException(status_code=404, detail=f"Case {case_id} not found")
+    return _cases[case_id]
+
+
+@app.patch("/cases/{case_id}")
+async def update_case(case_id: str, req: UpdateCaseRequest):
+    """Update case status, resolution, or analyst notes."""
+    if case_id not in _cases:
+        raise HTTPException(status_code=404, detail=f"Case {case_id} not found")
+    case = _cases[case_id]
+    if req.status is not None:
+        case["status"] = req.status
+    if req.resolution is not None:
+        case["resolution"] = req.resolution
+    if req.analyst_notes is not None:
+        case["analyst_notes"] = req.analyst_notes
+    case["updated_at"] = datetime.now(timezone.utc).isoformat()
+    return case
+
+
+# ─── SAR Report Generation ───────────────────────────────────────────────────
+
+class SarRequest(BaseModel):
+    transaction: dict[str, Any]
+    copilot_summary: str = ""
+
+
+@app.post("/generate_sar")
+async def generate_sar(req: SarRequest):
+    """Generate a Suspicious Activity Report using AI."""
+    try:
+        result = run_sar_generation(req.transaction, req.copilot_summary)
+        return result
+    except Exception as e:
+        logger.error(f"SAR generation error: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"SAR generation failed: {str(e)}",
+        )
 
 
 if __name__ == "__main__":

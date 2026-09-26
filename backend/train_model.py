@@ -65,6 +65,13 @@ df = df[df["type"].isin(["TRANSFER", "CASH_OUT"])].copy()
 print(f"      Rows after filter: {len(df):,}")
 print(f"      Fraud in filtered set: {df['isFraud'].sum():,} ({df['isFraud'].mean()*100:.3f}%)")
 
+# Downsample to speed up training
+print("\n[2.5/9] Downsampling for faster hackathon training...")
+fraud_df = df[df['isFraud'] == 1]
+non_fraud_df = df[df['isFraud'] == 0].sample(n=min(200000, len(df[df['isFraud'] == 0])), random_state=42)
+df = pd.concat([fraud_df, non_fraud_df]).sample(frac=1, random_state=42).reset_index(drop=True)
+print(f"      Rows after downsample: {len(df):,}")
+
 # --- Step 3: Feature Engineering ---
 print("\n[3/9] Engineering features...")
 

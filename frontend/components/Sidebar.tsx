@@ -1,8 +1,10 @@
-import { Shield, Activity, AlertTriangle, Settings, BarChart3, Library, Zap } from "lucide-react";
+import { Shield, Activity, AlertTriangle, Settings, BarChart3, Library, Zap, Briefcase, Network } from "lucide-react";
 
 const navItems = [
   { icon: Activity, label: "Live Monitor", id: "monitor" },
   { icon: AlertTriangle, label: "Alert Queue", id: "alerts" },
+  { icon: Briefcase, label: "Cases", id: "cases" },
+  { icon: Network, label: "Network", id: "network" },
   { icon: BarChart3, label: "Analytics", id: "analytics" },
   { icon: Settings, label: "Settings", id: "settings" },
 ];
